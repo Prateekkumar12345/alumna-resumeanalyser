@@ -1,0 +1,40 @@
+# Enhanced Resume Analyzer - Python Dependencies
+
+# Core Streamlit Application
+streamlit
+
+# PDF Processing
+PyPDF2
+
+# OpenAI API for AI Analysis
+openai
+
+# Text Processing and NLP
+spacy
+nltk
+
+# Data Processing
+pandas
+numpy
+
+# Visualization (if needed for future features)
+matplotlib
+seaborn
+plotly
+
+# Utilities
+python-dateutil
+regex
+
+# Optional: For enhanced text processing
+textstat
+wordcloud
+
+# Development and Testing
+pytest
+black
+flake8
+
+fastapi
+uvicorn
+python-multipart
