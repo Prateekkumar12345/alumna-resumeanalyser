@@ -249,12 +249,12 @@ class HighPerformanceLangChainAnalyzer:
 
         1. PROFESSIONAL PROFILE (experience_level, technical_skills_count, project_portfolio_size, achievement_metrics, technical_sophistication)
         2. CONTACT PRESENTATION (email_address, phone_number, education, resume_length, action_verbs)
-        3. DETAILED SCORING with these exact sections:
-           - "Contact Information" (score, max_score, percentage, details)
-           - "Technical Skills" (score, max_score, percentage, details)
-           - "Experience Quality" (score, max_score, percentage, details)
-           - "Quantified Achievements" (score, max_score, percentage, details)
-           - "Content Optimization" (score, max_score, percentage, details)
+        3. DETAILED SCORING with these exact sections (use snake_case keys):
+           - "contact_information" (score, max_score, percentage, details)
+           - "technical_skills" (score, max_score, percentage, details)
+           - "experience_quality" (score, max_score, percentage, details)
+           - "quantified_achievements" (score, max_score, percentage, details)
+           - "content_optimization" (score, max_score, percentage, details)
         4. STRENGTHS ANALYSIS - Provide at least 5 strengths (strength, why_its_strong, ats_benefit, competitive_advantage, evidence)
         5. WEAKNESSES ANALYSIS - Provide at least 5 weaknesses (weakness, why_problematic, ats_impact, how_it_hurts, fix_priority, specific_fix, timeline)
         6. IMPROVEMENT PLAN (critical, high, medium lists)
@@ -265,6 +265,7 @@ class HighPerformanceLangChainAnalyzer:
         {format_instructions}
         
         CRITICAL: Return ONLY valid JSON matching the exact structure specified. No additional text or explanations.
+        Use snake_case for all detailed_scoring keys: contact_information, technical_skills, experience_quality, quantified_achievements, content_optimization
         """
         
         prompt = PromptTemplate(
@@ -301,6 +302,18 @@ class HighPerformanceLangChainAnalyzer:
             "job_market_analysis": {},
             "ai_insights": {}
         }
+    
+    def _convert_to_snake_case(self, key: str) -> str:
+        """Convert title case to snake_case"""
+        # Handle specific mappings
+        mapping = {
+            "Contact Information": "contact_information",
+            "Technical Skills": "technical_skills",
+            "Experience Quality": "experience_quality",
+            "Quantified Achievements": "quantified_achievements",
+            "Content Optimization": "content_optimization"
+        }
+        return mapping.get(key, key.lower().replace(" ", "_"))
     
     async def analyze_resume_with_jobs(
         self, 
@@ -393,16 +406,16 @@ class HighPerformanceLangChainAnalyzer:
             }
         }
         
-        # Detailed Scoring
-        response["detailed_scoring"] = {
-            key: {
+        # Detailed Scoring - Convert keys to snake_case
+        response["detailed_scoring"] = {}
+        for key, detail in analysis.detailed_scoring.items():
+            snake_case_key = self._convert_to_snake_case(key)
+            response["detailed_scoring"][snake_case_key] = {
                 "score": detail.score,
                 "max_score": detail.max_score,
                 "percentage": detail.percentage,
                 "details": detail.details
             }
-            for key, detail in analysis.detailed_scoring.items()
-        }
         
         # Strengths
         response["strengths_analysis"] = [
@@ -473,7 +486,14 @@ class HighPerformanceLangChainAnalyzer:
                         "recommendation": parsed_data.get("recommendation_level", "Unknown")
                     }
                 
-                response["detailed_scoring"] = parsed_data.get("detailed_scoring", {})
+                # Convert detailed_scoring keys to snake_case
+                detailed_scoring = parsed_data.get("detailed_scoring", {})
+                converted_scoring = {}
+                for key, value in detailed_scoring.items():
+                    snake_case_key = self._convert_to_snake_case(key)
+                    converted_scoring[snake_case_key] = value
+                response["detailed_scoring"] = converted_scoring
+                
                 response["strengths_analysis"] = parsed_data.get("strengths_analysis", [])
                 response["weaknesses_analysis"] = parsed_data.get("weaknesses_analysis", [])
                 response["improvement_plan"] = parsed_data.get("improvement_plan", {"critical": [], "high": [], "medium": []})
@@ -587,7 +607,8 @@ async def health_check():
             "Guaranteed standard JSON structure",
             "Resume analysis",
             "Job search integration",
-            "Frontend-compatible output"
+            "Frontend-compatible output",
+            "Snake case field naming"
         ]
     }
 
@@ -596,7 +617,7 @@ async def root():
     """Root endpoint"""
     return {
         "service": "AI Resume Analyzer with Consistent JSON Output",
-        "version": "2.2",
+        "version": "2.3",
         "description": "AI resume analysis with guaranteed standard JSON format for frontend compatibility",
         "endpoints": {
             "/analyze-resume": "POST - Comprehensive analysis with standard JSON output",
@@ -606,6 +627,7 @@ async def root():
         "guarantees": [
             "Consistent JSON structure every time",
             "All standard fields present",
+            "Snake case field naming in detailed_scoring",
             "Frontend-compatible format",
             "Optional job listings"
         ]
