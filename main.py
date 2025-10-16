@@ -1,4 +1,6 @@
-from fastapi import FastAPI, HTTPException, File, UploadFile, Request
+
+
+from fastapi import FastAPI, HTTPException, File, UploadFile, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from PyPDF2 import PdfReader
@@ -45,6 +47,23 @@ app.add_middleware(
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     logger.warning("OPENAI_API_KEY not found in environment variables")
+
+# ===== REQUEST/RESPONSE MODELS =====
+
+class AnalyzeResumeRequest(BaseModel):
+    """Request model for resume analysis"""
+    target_role: Optional[str] = Field(None, description="Target job position/role")
+    search_jobs: bool = Field(True, description="Whether to search for relevant jobs")
+    location: str = Field("India", description="Location for job search")
+
+    class Config:
+        schema_extra = {
+            "example": {
+                "target_role": "Senior Software Engineer",
+                "search_jobs": True,
+                "location": "India"
+            }
+        }
 
 # ===== PYDANTIC MODELS - MATCHING YOUR STANDARD JSON STRUCTURE =====
 
@@ -539,19 +558,43 @@ async def add_performance_headers(request: Request, call_next):
 
 @app.post("/analyze-resume")
 async def analyze_resume(
-    file: UploadFile = File(...),
-    target_role: Optional[str] = None,
-    search_jobs: bool = True,
-    location: str = "India"
+    file: UploadFile = File(..., description="Resume PDF file"),
+    target_role: str = Form(None, description="Target job position/role"),
+    search_jobs: bool = Form(True, description="Whether to search for relevant jobs"),
+    location: str = Form("India", description="Location for job search")
 ):
     """
     Comprehensive resume analysis with guaranteed standard JSON output and job search integration
     
-    Parameters:
-    - file: PDF resume file
-    - target_role: Target job position (recommended for best results)
-    - search_jobs: Whether to search for relevant jobs (default: True)
+    Request Body (multipart/form-data):
+    - file: PDF resume file (required)
+    - target_role: Target job position (optional, recommended for best results)
+    - search_jobs: Whether to search for relevant jobs (default: true)
     - location: Job search location (default: India)
+    
+    Example using curl:
+    ```bash
+    curl -X POST "http://localhost:8000/analyze-resume" \
+      -F "file=@resume.pdf" \
+      -F "target_role=Senior Software Engineer" \
+      -F "search_jobs=true" \
+      -F "location=India"
+    ```
+    
+    Example using Python requests:
+    ```python
+    import requests
+    
+    files = {'file': open('resume.pdf', 'rb')}
+    data = {
+        'target_role': 'Senior Software Engineer',
+        'search_jobs': True,
+        'location': 'India'
+    }
+    
+    response = requests.post('http://localhost:8000/analyze-resume', files=files, data=data)
+    result = response.json()
+    ```
     """
     start_time = asyncio.get_event_loop().time()
     
@@ -617,12 +660,21 @@ async def root():
     """Root endpoint"""
     return {
         "service": "AI Resume Analyzer with Consistent JSON Output",
-        "version": "2.3",
+        "version": "2.4",
         "description": "AI resume analysis with guaranteed standard JSON format for frontend compatibility",
         "endpoints": {
-            "/analyze-resume": "POST - Comprehensive analysis with standard JSON output",
+            "/analyze-resume": "POST - Comprehensive analysis with all parameters in request body (multipart/form-data)",
             "/health": "GET - Service health check",
             "/docs": "GET - API documentation"
+        },
+        "request_format": {
+            "content_type": "multipart/form-data",
+            "fields": {
+                "file": "PDF file (required)",
+                "target_role": "string (optional)",
+                "search_jobs": "boolean (default: true)",
+                "location": "string (default: India)"
+            }
         },
         "guarantees": [
             "Consistent JSON structure every time",
