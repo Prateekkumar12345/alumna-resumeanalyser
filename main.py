@@ -1,5 +1,3 @@
-
-
 from fastapi import FastAPI, HTTPException, File, UploadFile, Request, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -15,6 +13,7 @@ import io
 import concurrent.futures
 import re
 from datetime import datetime
+import hashlib
 
 # LangChain imports
 from langchain_openai import ChatOpenAI
@@ -47,6 +46,14 @@ app.add_middleware(
 openai_api_key = os.getenv("OPENAI_API_KEY")
 if not openai_api_key:
     logger.warning("OPENAI_API_KEY not found in environment variables")
+
+# ===== CACHE FOR CONSISTENT RESULTS =====
+analysis_cache = {}
+
+def get_content_hash(resume_text: str, target_role: str) -> str:
+    """Generate consistent hash for caching"""
+    content = f"{resume_text[:1000]}_{target_role}"  # Use first 1000 chars for efficiency
+    return hashlib.md5(content.encode()).hexdigest()
 
 # ===== REQUEST/RESPONSE MODELS =====
 
@@ -242,10 +249,11 @@ class HighPerformanceLangChainAnalyzer:
     """High-performance AI analyzer with guaranteed standard JSON output"""
     
     def __init__(self, openai_api_key: str):
+        # CRITICAL CHANGE: Set temperature to 0 for deterministic output
         self.llm = ChatOpenAI(
             api_key=openai_api_key,
             model_name="gpt-3.5-turbo-16k",
-            temperature=0.2,
+            temperature=0.0,  # Changed from 0.2 to 0.0 for consistent output
             max_tokens=4000,
             request_timeout=30
         )
@@ -285,6 +293,8 @@ class HighPerformanceLangChainAnalyzer:
         
         CRITICAL: Return ONLY valid JSON matching the exact structure specified. No additional text or explanations.
         Use snake_case for all detailed_scoring keys: contact_information, technical_skills, experience_quality, quantified_achievements, content_optimization
+        
+        IMPORTANT: For consistent analysis, always use the same scoring methodology and structure for identical resume content.
         """
         
         prompt = PromptTemplate(
@@ -346,6 +356,12 @@ class HighPerformanceLangChainAnalyzer:
             role_context = target_role or "general position"
             word_count = len(resume_text.split())
             
+            # Check cache first for identical resume content
+            cache_key = get_content_hash(resume_text, role_context)
+            if cache_key in analysis_cache:
+                logger.info("Returning cached analysis result")
+                return analysis_cache[cache_key]
+            
             # Initialize response with standard structure
             response = self._get_standard_response_template(role_context, word_count)
             
@@ -391,6 +407,10 @@ class HighPerformanceLangChainAnalyzer:
                     "search_query": f"{target_role} in {location}",
                     "jobs": job_listings
                 }
+            
+            # Cache the result for future identical requests
+            analysis_cache[cache_key] = response
+            logger.info(f"Cached analysis result for key: {cache_key}")
             
             return response
                 
@@ -651,7 +671,9 @@ async def health_check():
             "Resume analysis",
             "Job search integration",
             "Frontend-compatible output",
-            "Snake case field naming"
+            "Snake case field naming",
+            "Deterministic output (temperature=0)",
+            "Content-based caching"
         ]
     }
 
@@ -660,7 +682,7 @@ async def root():
     """Root endpoint"""
     return {
         "service": "AI Resume Analyzer with Consistent JSON Output",
-        "version": "2.4",
+        "version": "2.5",
         "description": "AI resume analysis with guaranteed standard JSON format for frontend compatibility",
         "endpoints": {
             "/analyze-resume": "POST - Comprehensive analysis with all parameters in request body (multipart/form-data)",
@@ -681,7 +703,8 @@ async def root():
             "All standard fields present",
             "Snake case field naming in detailed_scoring",
             "Frontend-compatible format",
-            "Optional job listings"
+            "Optional job listings",
+            "Deterministic output for identical resumes"
         ]
     }
 
